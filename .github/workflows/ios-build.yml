@@ -1,0 +1,56 @@
+name: Build iOS
+
+on:
+  push:
+    branches:
+      - main  # or whichever branch you want to build
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web assets
+        run: npm run build || echo "No build script, skipping"
+
+      - name: Copy Capacitor assets
+        run: npx cap copy ios
+
+      - name: Install CocoaPods
+        run: |
+          sudo gem install cocoapods
+          cd ios/App
+          pod install
+          cd ../..
+
+      - name: Build iOS app
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace \
+                     -scheme App \
+                     -sdk iphoneos \
+                     -configuration Release \
+                     -archivePath ${{ github.workspace }}/ios/App.xcarchive archive
+
+      - name: Export .ipa
+        run: |
+          xcodebuild -exportArchive \
+                     -archivePath ${{ github.workspace }}/ios/App.xcarchive \
+                     -exportOptionsPlist ios/exportOptions.plist \
+                     -exportPath ${{ github.workspace }}/ios/build
+
+      - name: Upload .ipa
+        uses: actions/upload-artifact@v3
+        with:
+          name: ios-app
+          path: ios/build/*.ipa
