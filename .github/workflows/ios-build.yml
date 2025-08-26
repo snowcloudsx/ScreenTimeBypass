@@ -1,32 +1,39 @@
-name: Build iOS
+name: Build iOS App
 
 on:
   push:
     branches:
-      - main  # or whichever branch you want to build
+      - main  # change if you want a different branch
+  workflow_dispatch: # allows manual trigger from GitHub UI
 
 jobs:
   build:
     runs-on: macos-latest
 
     steps:
+      # 1️⃣ Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
+      # 3️⃣ Install npm dependencies
       - name: Install dependencies
         run: npm install
 
+      # 4️⃣ Build web assets (optional, skips if no build script)
       - name: Build web assets
         run: npm run build || echo "No build script, skipping"
 
+      # 5️⃣ Copy Capacitor web assets to iOS project
       - name: Copy Capacitor assets
         run: npx cap copy ios
 
+      # 6️⃣ Install CocoaPods for iOS dependencies
       - name: Install CocoaPods
         run: |
           sudo gem install cocoapods
@@ -34,7 +41,8 @@ jobs:
           pod install
           cd ../..
 
-      - name: Build iOS app
+      # 7️⃣ Archive the iOS app
+      - name: Archive iOS App
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \
                      -scheme App \
@@ -42,6 +50,7 @@ jobs:
                      -configuration Release \
                      -archivePath ${{ github.workspace }}/ios/App.xcarchive archive
 
+      # 8️⃣ Export .ipa using automatic signing
       - name: Export .ipa
         run: |
           xcodebuild -exportArchive \
@@ -49,8 +58,9 @@ jobs:
                      -exportOptionsPlist ios/exportOptions.plist \
                      -exportPath ${{ github.workspace }}/ios/build
 
+      # 9️⃣ Upload the .ipa artifact for download
       - name: Upload .ipa
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ios-app
           path: ios/build/*.ipa
