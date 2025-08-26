@@ -1,39 +1,33 @@
-name: Build iOS App
+name: Build Unsigned iOS App
 
 on:
   push:
     branches:
-      - main  # change if you want a different branch
-  workflow_dispatch: # allows manual trigger from GitHub UI
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: macos-latest
 
     steps:
-      # 1️⃣ Checkout repo
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # 3️⃣ Install npm dependencies
       - name: Install dependencies
         run: npm install
 
-      # 4️⃣ Build web assets (optional, skips if no build script)
       - name: Build web assets
         run: npm run build || echo "No build script, skipping"
 
-      # 5️⃣ Copy Capacitor web assets to iOS project
       - name: Copy Capacitor assets
         run: npx cap copy ios
 
-      # 6️⃣ Install CocoaPods for iOS dependencies
       - name: Install CocoaPods
         run: |
           sudo gem install cocoapods
@@ -41,26 +35,24 @@ jobs:
           pod install
           cd ../..
 
-      # 7️⃣ Archive the iOS app
-      - name: Archive iOS App
+      - name: Build unsigned .ipa
         run: |
+          mkdir -p ios/build
           xcodebuild -workspace ios/App/App.xcworkspace \
                      -scheme App \
                      -sdk iphoneos \
                      -configuration Release \
-                     -archivePath ${{ github.workspace }}/ios/App.xcarchive archive
-
-      # 8️⃣ Export .ipa using automatic signing
-      - name: Export .ipa
-        run: |
+                     -allowProvisioningUpdates \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_REQUIRED=NO \
+                     archive -archivePath ${{ github.workspace }}/ios/build/App.xcarchive
           xcodebuild -exportArchive \
-                     -archivePath ${{ github.workspace }}/ios/App.xcarchive \
-                     -exportOptionsPlist ios/exportOptions.plist \
-                     -exportPath ${{ github.workspace }}/ios/build
+                     -archivePath ${{ github.workspace }}/ios/build/App.xcarchive \
+                     -exportPath ${{ github.workspace }}/ios/build \
+                     -exportOptionsPlist ios/unsignedExportOptions.plist
 
-      # 9️⃣ Upload the .ipa artifact for download
       - name: Upload .ipa
         uses: actions/upload-artifact@v4
         with:
-          name: ios-app
+          name: ios-unsigned-app
           path: ios/build/*.ipa
